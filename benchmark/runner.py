@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from rag_core.config import get_settings
+from rag_core.embedder import embed_texts
 from rag_core.models import QAResult
 
 if TYPE_CHECKING:
@@ -54,14 +55,10 @@ def _keyword_overlap(answer: str, keywords: list[str]) -> float:
 
 def _embedding_similarity(text_a: str, text_b: str, openai_client: OpenAI) -> float:
     """Cosine similarity between embeddings of two texts."""
-    cfg = get_settings()
     try:
-        resp = openai_client.embeddings.create(
-            model=cfg.openai.embedding_model,
-            input=[text_a[:8000], text_b[:8000]],
-        )
-        vec_a = resp.data[0].embedding
-        vec_b = resp.data[1].embedding
+        embeddings = embed_texts([text_a[:8000], text_b[:8000]], is_query=False)
+        vec_a = embeddings[0]
+        vec_b = embeddings[1]
         dot = sum(a * b for a, b in zip(vec_a, vec_b))
         norm_a = sum(a * a for a in vec_a) ** 0.5
         norm_b = sum(b * b for b in vec_b) ** 0.5

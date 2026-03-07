@@ -96,12 +96,12 @@ def ingest_file(
                 )
                 sys.exit(1)
             raise
-        stored = store.store_chunks(chunks)
+        stored = store.add_chunks(chunks)
         logger.info("Stored %d chunks in Neo4j vector index", stored)
 
         # 6. Skeleton indexing (optional)
         if not skip_skeleton:
-            from agentic_graph_rag.indexing.dual_node import build_dual_graph, embed_phrase_nodes
+            from agentic_graph_rag.indexing.dual_node import build_dual_graph, embed_phrase_nodes, init_phrase_index
             from agentic_graph_rag.indexing.skeleton import build_skeleton_index
 
             openai_client = make_openai_client(cfg)
@@ -129,6 +129,9 @@ def ingest_file(
                 logger.info("Embedding phrase nodes...")
                 updated = embed_phrase_nodes(phrase_nodes, driver, openai_client)
                 logger.info("Updated %d phrase node embeddings", updated)
+
+                # Create vector index for phrase nodes
+                init_phrase_index(driver)
         else:
             logger.info("Skipping skeleton indexing (--skip-skeleton)")
 

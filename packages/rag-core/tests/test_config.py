@@ -1,10 +1,11 @@
 """Tests for rag_core.config."""
 
-
+import os
 
 import pytest
 from rag_core.config import (
     AgentSettings,
+    EmbeddingSettings,
     IndexingSettings,
     Neo4jSettings,
     OpenAISettings,
@@ -16,7 +17,11 @@ from rag_core.config import (
 
 
 class TestNeo4jSettings:
-    def test_defaults(self):
+    def test_defaults(self, monkeypatch):
+        # Clear environment to test defaults
+        for key in list(os.environ.keys()):
+            if key.startswith("NEO4J_"):
+                monkeypatch.delenv(key, raising=False)
         s = Neo4jSettings()
         assert s.uri == "bolt://localhost:7687"
         assert s.user == "neo4j"
@@ -28,11 +33,36 @@ class TestNeo4jSettings:
         assert s.uri == "bolt://custom:7688"
 
 
+class TestEmbeddingSettings:
+    def test_defaults(self, monkeypatch):
+        # Clear environment to test defaults
+        for key in list(os.environ.keys()):
+            if key.startswith("EMBEDDING_"):
+                monkeypatch.delenv(key, raising=False)
+        s = EmbeddingSettings()
+        assert s.provider == "openai"
+        assert s.model == "text-embedding-3-small"
+        assert s.dimensions == 1536
+
+    def test_env_override(self, monkeypatch):
+        monkeypatch.setenv("EMBEDDING_PROVIDER", "local")
+        monkeypatch.setenv("EMBEDDING_MODEL", "intfloat/multilingual-e5-large")
+        monkeypatch.setenv("EMBEDDING_DIMENSIONS", "1024")
+        s = EmbeddingSettings()
+        assert s.provider == "local"
+        assert s.model == "intfloat/multilingual-e5-large"
+        assert s.dimensions == 1024
+
+
 class TestOpenAISettings:
-    def test_defaults(self):
+    def test_defaults(self, monkeypatch):
+        # Clear environment to test defaults
+        for key in list(os.environ.keys()):
+            if key.startswith("OPENAI_"):
+                monkeypatch.delenv(key, raising=False)
         s = OpenAISettings()
-        assert s.embedding_model == "text-embedding-3-small"
-        assert s.embedding_dimensions == 1536
+        assert s.api_key == ""
+        assert s.base_url == ""
         assert s.llm_model == "gpt-4o"
         assert s.llm_model_mini == "gpt-4o-mini"
         assert s.llm_temperature == 0.0
@@ -80,6 +110,7 @@ class TestSettings:
         s = Settings()
         assert isinstance(s.neo4j, Neo4jSettings)
         assert isinstance(s.openai, OpenAISettings)
+        assert isinstance(s.embedding, EmbeddingSettings)
         assert isinstance(s.indexing, IndexingSettings)
         assert isinstance(s.retrieval, RetrievalSettings)
         assert isinstance(s.agent, AgentSettings)

@@ -10,6 +10,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from rag_core.config import get_settings
+from rag_core.embedder import embed_texts
 from rag_core.models import Chunk, GraphContext, SearchResult
 
 if TYPE_CHECKING:
@@ -23,15 +24,10 @@ logger = logging.getLogger(__name__)
 # Helper: embed query
 # ---------------------------------------------------------------------------
 
-def _embed_query(query: str, openai_client: OpenAI) -> list[float]:
-    """Embed query text using OpenAI embeddings."""
-    cfg = get_settings()
-    response = openai_client.embeddings.create(
-        model=cfg.openai.embedding_model,
-        input=query,
-        dimensions=cfg.openai.embedding_dimensions,
-    )
-    return response.data[0].embedding
+def _embed_query(query: str, openai_client: OpenAI | None = None) -> list[float]:
+    """Embed query text using configured embedding provider."""
+    embeddings = embed_texts([query], is_query=True)
+    return embeddings[0] if embeddings else []
 
 
 def _graph_context_to_results(ctx: GraphContext, source: str) -> list[SearchResult]:

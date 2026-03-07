@@ -685,7 +685,9 @@ with tab_settings:
     cfg = get_settings()
     config_dict = {
         "Neo4j URI": cfg.neo4j.uri,
-        "Embedding Model": cfg.openai.embedding_model,
+        "Embedding Provider": cfg.embedding.provider,
+        "Embedding Model": cfg.embedding.model,
+        "Embedding Dimensions": cfg.embedding.dimensions,
         "LLM Model": cfg.openai.llm_model,
         "Chunk Size": cfg.indexing.chunk_size,
         "Skeleton Beta": cfg.indexing.skeleton_beta,

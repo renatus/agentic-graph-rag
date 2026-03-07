@@ -56,7 +56,7 @@ class VectorStore:
                     }}
                 }}
                 """,
-                dimensions=cfg.openai.embedding_dimensions,
+                dimensions=cfg.embedding.dimensions,
             )
         logger.info("Vector index '%s' initialized", INDEX_NAME)
 

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 import networkx as nx
 from rag_core.config import get_settings
+from rag_core.embedder import embed_texts
 from rag_core.models import Chunk, Entity, PassageNode, PhraseNode, Relationship
 
 if TYPE_CHECKING:
@@ -324,28 +325,21 @@ def embed_phrase_nodes(
 
     Returns count of nodes updated.
     """
-    cfg = get_settings()
-    if openai_client is None:
-        from rag_core.config import make_openai_client
-        openai_client = make_openai_client(cfg)
-
     if not phrase_nodes:
         return 0
 
-    # Batch embed all phrase texts
+    cfg = get_settings()
+
+    # Batch embed all phrase texts (treat as queries for E5 models)
     texts = [
         f"{pn.name}: {pn.entity_type}" for pn in phrase_nodes
     ]
 
-    response = openai_client.embeddings.create(
-        model=cfg.openai.embedding_model,
-        input=texts,
-        dimensions=cfg.openai.embedding_dimensions,
-    )
+    embeddings = embed_texts(texts, is_query=True)
 
     with driver.session() as session:
         for i, pn in enumerate(phrase_nodes):
-            emb = response.data[i].embedding
+            emb = embeddings[i]
             session.run(
                 f"""
                 MATCH (p:{PHRASE_LABEL} {{id: $id}})
@@ -355,7 +349,8 @@ def embed_phrase_nodes(
                 embedding=emb,
             )
 
-    logger.info("Added embeddings to %d PhraseNodes", len(phrase_nodes))
+    logger.info("Added embeddings to %d PhraseNodes (%s via %s)",
+                len(phrase_nodes), cfg.embedding.model, cfg.embedding.provider)
     return len(phrase_nodes)
 
 
@@ -375,6 +370,6 @@ def init_phrase_index(driver: Driver) -> None:
                 }}
             }}
             """,
-            dimensions=cfg.openai.embedding_dimensions,
+            dimensions=cfg.embedding.dimensions,
         )
     logger.info("Phrase vector index '%s' initialized", PHRASE_INDEX_NAME)
