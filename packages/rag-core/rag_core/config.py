@@ -76,6 +76,7 @@ class OpenAISettings(BaseSettings):
     llm_model: str = "gpt-4o"
     llm_model_mini: str = "gpt-4o-mini"
     llm_temperature: float = 0.0
+    max_context_tokens: int = 100000  # Reserve ~28K for response (DeepSeek 128K limit)
 
     model_config = {"env_prefix": "OPENAI_"}
 

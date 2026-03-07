@@ -330,12 +330,28 @@ Declarative routing via PyMangle (Python Datalog engine):
 
 ## Configuration
 
-All settings via `.env` or environment variables:
+All settings are defined in `packages/rag-core/rag_core/config.py` and can be overridden via `.env` file or environment variables.
+
+### LLM Settings (`packages/rag-core/rag_core/config.py`)
+
+These settings control the LLM behavior and are particularly important when using models with context limits (e.g., DeepSeek via API with 128K token limit):
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `OPENAI_API_KEY` | — | OpenAI API key |
+| `OPENAI_API_KEY` | — | OpenAI API key (or LiteLLM proxy key) |
+| `OPENAI_BASE_URL` | `""` | LiteLLM proxy URL (e.g., `http://localhost:4000/v1`) |
+| `OPENAI_LLM_MODEL` | `gpt-4o` | Main LLM for answer generation |
+| `OPENAI_LLM_MODEL_MINI` | `gpt-4o-mini` | Smaller LLM for routing/classification |
+| `OPENAI_LLM_TEMPERATURE` | `0.0` | LLM temperature |
+| `OPENAI_MAX_CONTEXT_TOKENS` | `100000` | Max tokens for context (reserves ~28K for response) |
+
+### Other Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
 | `NEO4J_URI` | `bolt://localhost:7687` | Neo4j connection |
+| `EMBEDDING_PROVIDER` | `openai` | Embedding provider (`openai` or `local`) |
+| `EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model name |
 | `INDEXING_SKELETON_BETA` | `0.25` | Fraction of chunks for full extraction |
 | `INDEXING_KNN_K` | `10` | KNN graph neighbors |
 | `INDEXING_PAGERANK_DAMPING` | `0.85` | PageRank damping factor |
@@ -345,6 +361,21 @@ All settings via `.env` or environment variables:
 | `RETRIEVAL_MAX_HOPS` | `3` | Max graph traversal depth |
 | `AGENT_MAX_RETRIES` | `2` | Self-correction retries |
 | `AGENT_RELEVANCE_THRESHOLD` | `2.0` | Minimum relevance score (1-5) |
+
+### Handling Token Limits
+
+If you encounter errors like `maximum context length is 131072 tokens`, adjust `OPENAI_MAX_CONTEXT_TOKENS` in your `.env`:
+
+```bash
+# For DeepSeek (128K context), leave room for response
+OPENAI_MAX_CONTEXT_TOKENS=100000
+
+# For GPT-4o (128K context)
+OPENAI_MAX_CONTEXT_TOKENS=120000
+
+# For GPT-4o-mini (128K context)
+OPENAI_MAX_CONTEXT_TOKENS=120000
+```
 
 ## Tech Stack
 
