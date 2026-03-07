@@ -37,6 +37,14 @@ def _is_enumeration_query(query: str) -> bool:
     return bool(_ENUM_RE.search(query))
 
 
+def _estimate_tokens(text: str) -> int:
+    """Estimate token count using character-based approximation.
+
+    Uses ~4 characters per token as rough estimate for mixed English/Russian text.
+    """
+    return len(text) // 4
+
+
 def generate_answer(
     query: str, results: list[SearchResult], openai_client: OpenAI | None = None,
 ) -> QAResult:
@@ -54,9 +62,33 @@ def generate_answer(
             query=query,
         )
 
+    # Build context with token limit
+    max_context_tokens = cfg.openai.max_context_tokens
+    # Reserve tokens for system prompt, user prompt template, query
+    prompt_overhead = 500 + _estimate_tokens(query)
+    available_tokens = max_context_tokens - prompt_overhead
+
     context_chunks = []
+    total_tokens = 0
+    truncated_count = 0
+
     for i, result in enumerate(results, start=1):
-        context_chunks.append(f"[Chunk {i}]\n{result.chunk.enriched_content}")
+        chunk_text = f"[Chunk {i}]\n{result.chunk.enriched_content}"
+        chunk_tokens = _estimate_tokens(chunk_text)
+
+        if total_tokens + chunk_tokens <= available_tokens:
+            context_chunks.append(chunk_text)
+            total_tokens += chunk_tokens
+        else:
+            truncated_count += 1
+
+    if truncated_count > 0:
+        logger.warning(
+            "Context truncated: %d chunks used, %d chunks dropped "
+            "(estimated %d tokens used, limit %d)",
+            len(context_chunks), truncated_count, total_tokens, available_tokens
+        )
+
     context = "\n\n".join(context_chunks)
 
     # Detect enumeration/global queries for specialized prompt
