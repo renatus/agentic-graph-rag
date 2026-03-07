@@ -68,16 +68,21 @@ def generate_answer(
     prompt_overhead = 500 + _estimate_tokens(query)
     available_tokens = max_context_tokens - prompt_overhead
 
+    # Sort by score descending to prioritize most relevant chunks
+    sorted_results = sorted(results, key=lambda r: r.score, reverse=True)
+
     context_chunks = []
+    used_results = []
     total_tokens = 0
     truncated_count = 0
 
-    for i, result in enumerate(results, start=1):
+    for i, result in enumerate(sorted_results, start=1):
         chunk_text = f"[Chunk {i}]\n{result.chunk.enriched_content}"
         chunk_tokens = _estimate_tokens(chunk_text)
 
         if total_tokens + chunk_tokens <= available_tokens:
             context_chunks.append(chunk_text)
+            used_results.append(result)
             total_tokens += chunk_tokens
         else:
             truncated_count += 1
@@ -134,12 +139,12 @@ def generate_answer(
         completion_tokens = getattr(response.usage, "completion_tokens", 0) or 0
         logger.info("Generated answer: %s", answer_text[:100])
 
-        avg_score = sum(r.score for r in results) / len(results)
+        avg_score = sum(r.score for r in used_results) / len(used_results) if used_results else 0.0
         confidence = min(1.0, max(0.1, avg_score))
 
         return QAResult(
             answer=answer_text,
-            sources=results,
+            sources=used_results,
             confidence=confidence,
             query=query,
             prompt_tokens=prompt_tokens,
@@ -150,7 +155,7 @@ def generate_answer(
         logger.error("Error generating answer: %s", e)
         return QAResult(
             answer=f"Error generating answer: {e}",
-            sources=results,
+            sources=used_results,
             confidence=0.0,
             query=query,
         )
