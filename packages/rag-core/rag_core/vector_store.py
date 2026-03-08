@@ -159,6 +159,7 @@ class VectorStore:
         - chunk_count: number of chunks
         - total_chars: total characters
         - uploaded_at: upload timestamp (if available)
+        - sections: list of section titles (for unknown sources)
         """
         import ast
 
@@ -166,7 +167,8 @@ class VectorStore:
             result = session.run(
                 f"""
                 MATCH (c:{NODE_LABEL})
-                RETURN c.metadata AS meta, size(c.content) AS content_size
+                RETURN c.metadata AS meta, size(c.content) AS content_size,
+                       substring(c.content, 0, 100) AS content_preview
                 """
             )
 
@@ -181,6 +183,7 @@ class VectorStore:
 
                 source = meta.get("source", "unknown")
                 uploaded_at = meta.get("uploaded_at", "")
+                section_title = meta.get("section_title", "")
 
                 if source not in docs_by_source:
                     docs_by_source[source] = {
@@ -188,9 +191,31 @@ class VectorStore:
                         "chunk_count": 0,
                         "total_chars": 0,
                         "uploaded_at": uploaded_at,
+                        "sections": {},
                     }
                 docs_by_source[source]["chunk_count"] += 1
                 docs_by_source[source]["total_chars"] += record["content_size"] or 0
+
+                # Track sections for unknown sources
+                if source == "unknown" and section_title:
+                    if section_title not in docs_by_source[source]["sections"]:
+                        docs_by_source[source]["sections"][section_title] = {
+                            "chunk_count": 0,
+                            "total_chars": 0,
+                        }
+                    docs_by_source[source]["sections"][section_title]["chunk_count"] += 1
+                    docs_by_source[source]["sections"][section_title]["total_chars"] += record["content_size"] or 0
+
+            # Convert sections dict to sorted list
+            for doc in docs_by_source.values():
+                if doc["sections"]:
+                    doc["sections"] = sorted(
+                        doc["sections"].items(),
+                        key=lambda x: x[1]["chunk_count"],
+                        reverse=True
+                    )
+                else:
+                    doc["sections"] = []
 
             return sorted(docs_by_source.values(), key=lambda x: x["source"])
 

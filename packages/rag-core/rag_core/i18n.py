@@ -37,6 +37,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "docs_prev": {"en": "Previous", "ru": "Назад"},
     "docs_next": {"en": "Next", "ru": "Вперёд"},
     "docs_page": {"en": "Page {page} of {total}", "ru": "Страница {page} из {total}"},
+    "docs_unknown": {"en": "Unknown (legacy documents)", "ru": "Неизвестно (старые документы)"},
+    "docs_show_sections": {"en": "Show {count} sections", "ru": "Показать {count} разделов"},
+    "docs_more_sections": {"en": "... and {count} more sections", "ru": "... ещё {count} разделов"},
 
     # Ingest tab
     "ingest_header": {"en": "Document Ingestion", "ru": "Загрузка документов"},

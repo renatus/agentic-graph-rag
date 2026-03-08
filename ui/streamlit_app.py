@@ -401,7 +401,10 @@ with tab_documents:
                     col1, col2, col3, col4 = st.columns([3, 1, 2, 1])
 
                     with col1:
-                        st.markdown(f"**{doc['source']}**")
+                        if doc['source'] == 'unknown':
+                            st.markdown("**Unknown (legacy documents)**")
+                        else:
+                            st.markdown(f"**{doc['source']}**")
 
                     with col2:
                         st.caption(f"{doc['chunk_count']} {t('docs_col_chunks').lower()}")
@@ -414,6 +417,17 @@ with tab_documents:
 
                     with col4:
                         st.caption(f"{doc['total_chars']:,}")
+
+                    # Show sections for unknown documents
+                    if doc['source'] == 'unknown' and doc.get('sections'):
+                        with st.expander(f"Show {len(doc['sections'])} sections"):
+                            for section_title, section_data in doc['sections'][:20]:
+                                st.markdown(
+                                    f"- **{section_title}** — {section_data['chunk_count']} chunks, "
+                                    f"{section_data['total_chars']:,} chars"
+                                )
+                            if len(doc['sections']) > 20:
+                                st.caption(f"... and {len(doc['sections']) - 20} more sections")
 
             # Pagination controls
             st.divider()
