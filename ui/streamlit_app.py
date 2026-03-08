@@ -396,9 +396,9 @@ with tab_documents:
             page_docs = documents[start_idx:end_idx]
 
             # Display documents table
-            for doc in page_docs:
+            for idx, doc in enumerate(page_docs):
                 with st.container(border=True):
-                    col1, col2, col3, col4 = st.columns([3, 1, 2, 1])
+                    col1, col2, col3, col4, col5 = st.columns([3, 1, 2, 1, 1])
 
                     with col1:
                         if doc['source'] == 'unknown':
@@ -416,7 +416,42 @@ with tab_documents:
                             st.caption("-")
 
                     with col4:
-                        st.caption(f"{doc['total_chars']:,}")
+                        st.caption(f"{doc['total_chars']:,} {t('docs_col_size')}")
+
+                    with col5:
+                        source_key = doc['source']
+                        btn_key = f"reprocess_{idx}_{source_key}"
+                        if st.button(t("docs_reprocess"), key=btn_key):
+                            with st.spinner(t("docs_reprocessing")):
+                                from rag_core.embedder import embed_chunks
+                                from rag_core.models import Chunk
+
+                                # Get chunks for this source
+                                raw_chunks = store.get_chunks_by_source(source_key)
+
+                                # Convert to Chunk objects
+                                chunks = [
+                                    Chunk(
+                                        id=c["id"],
+                                        content=c["content"],
+                                        context=c.get("context", ""),
+                                        metadata=c.get("metadata", {}),
+                                    )
+                                    for c in raw_chunks
+                                ]
+
+                                # Re-embed
+                                chunks = embed_chunks(chunks)
+
+                                # Update in database
+                                chunk_dicts = [
+                                    {"id": c.id, "embedding": c.embedding}
+                                    for c in chunks
+                                ]
+                                updated = store.update_chunk_embeddings(chunk_dicts)
+
+                                st.success(t("docs_reprocess_done", count=updated))
+                                st.rerun()
 
                     # Show sections for unknown documents
                     if doc['source'] == 'unknown' and doc.get('sections'):

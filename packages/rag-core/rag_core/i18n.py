@@ -40,6 +40,11 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "docs_unknown": {"en": "Unknown (legacy documents)", "ru": "Неизвестно (старые документы)"},
     "docs_show_sections": {"en": "Show {count} sections", "ru": "Показать {count} разделов"},
     "docs_more_sections": {"en": "... and {count} more sections", "ru": "... ещё {count} разделов"},
+    "docs_col_size": {"en": "chars", "ru": "символов"},
+    "docs_reprocess": {"en": "Reprocess", "ru": "Обновить"},
+    "docs_reprocessing": {"en": "Reprocessing...", "ru": "Обновление..."},
+    "docs_reprocess_done": {"en": "Reprocessed {count} chunks", "ru": "Обновлено {count} чанков"},
+    "docs_reprocess_all": {"en": "Reprocess All", "ru": "Обновить все"},
 
     # Ingest tab
     "ingest_header": {"en": "Document Ingestion", "ru": "Загрузка документов"},

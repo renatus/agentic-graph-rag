@@ -237,3 +237,69 @@ class VectorStore:
 
         logger.info("Deleted %d chunks from source '%s'", count, source)
         return count
+
+    def get_chunks_by_source(self, source: str) -> list[dict]:
+        """Get all chunks for a specific source.
+
+        Returns list of dicts with: id, content, context, metadata
+        """
+        import ast
+
+        with self._driver.session() as session:
+            if source == "unknown":
+                # Get chunks without source metadata
+                result = session.run(
+                    f"""
+                    MATCH (c:{NODE_LABEL})
+                    WHERE NOT c.metadata CONTAINS 'source'
+                       OR c.metadata CONTAINS "'source': 'unknown'"
+                    RETURN c.id AS id, c.content AS content,
+                           c.context AS context, c.metadata AS metadata
+                    """
+                )
+            else:
+                result = session.run(
+                    f"""
+                    MATCH (c:{NODE_LABEL})
+                    WHERE c.metadata CONTAINS $source
+                    RETURN c.id AS id, c.content AS content,
+                           c.context AS context, c.metadata AS metadata
+                    """,
+                    source=f"'source': '{source}'",
+                )
+
+            chunks = []
+            for record in result:
+                meta_str = record["metadata"] or "{}"
+                try:
+                    metadata = ast.literal_eval(meta_str) if meta_str else {}
+                except (ValueError, SyntaxError):
+                    metadata = {}
+
+                chunks.append({
+                    "id": record["id"],
+                    "content": record["content"],
+                    "context": record["context"],
+                    "metadata": metadata,
+                })
+
+            return chunks
+
+    def update_chunk_embeddings(self, chunks: list[dict]) -> int:
+        """Update embeddings for existing chunks. Returns count updated."""
+        with self._driver.session() as session:
+            count = 0
+            for chunk in chunks:
+                if chunk.get("embedding"):
+                    session.run(
+                        f"""
+                        MATCH (c:{NODE_LABEL} {{id: $id}})
+                        SET c.embedding = $embedding
+                        """,
+                        id=chunk["id"],
+                        embedding=chunk["embedding"],
+                    )
+                    count += 1
+
+        logger.info("Updated embeddings for %d chunks", count)
+        return count
