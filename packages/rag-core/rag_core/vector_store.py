@@ -160,40 +160,39 @@ class VectorStore:
         - total_chars: total characters
         - uploaded_at: upload timestamp (if available)
         """
+        import ast
+
         with self._driver.session() as session:
             result = session.run(
                 f"""
                 MATCH (c:{NODE_LABEL})
-                WITH c.metadata AS meta, count(c) AS chunk_count,
-                     sum(size(c.content)) AS total_chars
-                WITH meta, chunk_count, total_chars
-                RETURN
-                    CASE
-                        WHEN meta CONTAINS 'source' THEN
-                            substring(meta, strpos(meta, "'source': '") + 11,
-                                      strpos(substring(meta, strpos(meta, "'source': '") + 11), "'"))
-                        ELSE 'unknown'
-                    END AS source,
-                    chunk_count,
-                    total_chars,
-                    CASE
-                        WHEN meta CONTAINS 'uploaded_at' THEN
-                            substring(meta, strpos(meta, "'uploaded_at': '") + 16,
-                                      strpos(substring(meta, strpos(meta, "'uploaded_at': '") + 16), "'"))
-                        ELSE ''
-                    END AS uploaded_at
-                ORDER BY source
+                RETURN c.metadata AS meta, size(c.content) AS content_size
                 """
             )
-            documents = []
+
+            # Aggregate by source in Python
+            docs_by_source: dict[str, dict] = {}
             for record in result:
-                documents.append({
-                    "source": record["source"] or "unknown",
-                    "chunk_count": record["chunk_count"],
-                    "total_chars": record["total_chars"],
-                    "uploaded_at": record["uploaded_at"] or "",
-                })
-            return documents
+                meta_str = record["meta"] or "{}"
+                try:
+                    meta = ast.literal_eval(meta_str) if meta_str else {}
+                except (ValueError, SyntaxError):
+                    meta = {}
+
+                source = meta.get("source", "unknown")
+                uploaded_at = meta.get("uploaded_at", "")
+
+                if source not in docs_by_source:
+                    docs_by_source[source] = {
+                        "source": source,
+                        "chunk_count": 0,
+                        "total_chars": 0,
+                        "uploaded_at": uploaded_at,
+                    }
+                docs_by_source[source]["chunk_count"] += 1
+                docs_by_source[source]["total_chars"] += record["content_size"] or 0
+
+            return sorted(docs_by_source.values(), key=lambda x: x["source"])
 
     def delete_by_source(self, source: str) -> int:
         """Delete all chunks from a specific source. Returns count deleted."""
