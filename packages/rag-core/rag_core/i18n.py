@@ -22,6 +22,21 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "tab_graph": {"en": "Knowledge Graph", "ru": "Граф знаний"},
     "tab_benchmark": {"en": "Benchmark", "ru": "Benchmark"},
     "tab_settings": {"en": "Settings & Stats", "ru": "Настройки"},
+    "tab_documents": {"en": "Documents", "ru": "Документы"},
+
+    # Documents tab
+    "docs_header": {"en": "Uploaded Documents", "ru": "Загруженные документы"},
+    "docs_no_documents": {"en": "No documents uploaded yet.", "ru": "Нет загруженных документов."},
+    "docs_col_filename": {"en": "Filename", "ru": "Имя файла"},
+    "docs_col_chunks": {"en": "Chunks", "ru": "Чанков"},
+    "docs_col_uploaded": {"en": "Uploaded", "ru": "Загружен"},
+    "docs_col_size": {"en": "Size (chars)", "ru": "Размер (символов)"},
+    "docs_delete": {"en": "Delete", "ru": "Удалить"},
+    "docs_delete_confirm": {"en": "Delete document?", "ru": "Удалить документ?"},
+    "docs_deleted": {"en": "Deleted {count} chunks from {filename}", "ru": "Удалено {count} чанков из {filename}"},
+    "docs_prev": {"en": "Previous", "ru": "Назад"},
+    "docs_next": {"en": "Next", "ru": "Вперёд"},
+    "docs_page": {"en": "Page {page} of {total}", "ru": "Страница {page} из {total}"},
 
     # Ingest tab
     "ingest_header": {"en": "Document Ingestion", "ru": "Загрузка документов"},

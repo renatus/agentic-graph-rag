@@ -114,9 +114,10 @@ if "last_trace" not in st.session_state:
 # Tabs
 # ---------------------------------------------------------------------------
 
-tab_ingest, tab_search, tab_graph, tab_trace, tab_bench, tab_reasoning, tab_settings = st.tabs([
+tab_ingest, tab_search, tab_documents, tab_graph, tab_trace, tab_bench, tab_reasoning, tab_settings = st.tabs([
     t("tab_ingest"),
     t("tab_search"),
+    t("tab_documents"),
     t("tab_graph_explorer"),
     t("tab_agent_trace"),
     t("tab_benchmark"),
@@ -138,6 +139,7 @@ with tab_ingest:
     )
 
     file_path: str | None = None
+    original_filename: str | None = None
     if source == t("ingest_source_upload"):
         uploaded = st.file_uploader(
             t("ingest_upload"),
@@ -145,6 +147,7 @@ with tab_ingest:
             label_visibility="collapsed",
         )
         if uploaded:
+            original_filename = uploaded.name
             suffix = Path(uploaded.name).suffix
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
             tmp.write(uploaded.read())
@@ -158,6 +161,8 @@ with tab_ingest:
         if file_path and not Path(file_path).exists():
             st.warning(t("ingest_path_not_found", path=file_path))
             file_path = None
+        elif file_path:
+            original_filename = Path(file_path).name
 
     skip_enrichment = st.checkbox(t("ingest_skip_enrichment"), value=False)
 
@@ -184,6 +189,16 @@ with tab_ingest:
 
             cfg = get_settings()
             chunks = chunk_text(text, cfg.indexing.chunk_size, cfg.indexing.chunk_overlap)
+
+            # Add document metadata to each chunk
+            from datetime import datetime
+            doc_metadata = {
+                "source": original_filename or "unknown",
+                "uploaded_at": datetime.now().isoformat(),
+            }
+            for chunk in chunks:
+                chunk.metadata.update(doc_metadata)
+
             st.info(t("ingest_chunks_created", count=len(chunks)))
             progress.progress(30, text=t("ingest_enriching"))
 
@@ -356,7 +371,72 @@ with tab_search:
                         st.caption(t("search_source_score", score=src.score))
 
 
-# ===================== TAB 3: GRAPH EXPLORER ==============================
+# ===================== TAB 3: DOCUMENTS ====================================
+
+with tab_documents:
+    st.header(t("docs_header"))
+
+    try:
+        store = _get_vector_store()
+        documents = store.list_documents()
+
+        if not documents:
+            st.info(t("docs_no_documents"))
+        else:
+            # Pagination
+            page_size = 10
+            total_pages = (len(documents) + page_size - 1) // page_size
+
+            if "docs_page" not in st.session_state:
+                st.session_state.docs_page = 1
+
+            current_page = st.session_state.docs_page
+            start_idx = (current_page - 1) * page_size
+            end_idx = start_idx + page_size
+            page_docs = documents[start_idx:end_idx]
+
+            # Display documents table
+            for doc in page_docs:
+                with st.container(border=True):
+                    col1, col2, col3, col4 = st.columns([3, 1, 2, 1])
+
+                    with col1:
+                        st.markdown(f"**{doc['source']}**")
+
+                    with col2:
+                        st.caption(f"{doc['chunk_count']} {t('docs_col_chunks').lower()}")
+
+                    with col3:
+                        if doc['uploaded_at']:
+                            st.caption(doc['uploaded_at'][:19].replace('T', ' '))
+                        else:
+                            st.caption("-")
+
+                    with col4:
+                        st.caption(f"{doc['total_chars']:,}")
+
+            # Pagination controls
+            st.divider()
+            col_prev, col_info, col_next = st.columns([1, 2, 1])
+
+            with col_prev:
+                if st.button(t("docs_prev"), disabled=current_page <= 1):
+                    st.session_state.docs_page = current_page - 1
+                    st.rerun()
+
+            with col_info:
+                st.markdown(f"### {t('docs_page', page=current_page, total=total_pages)}")
+
+            with col_next:
+                if st.button(t("docs_next"), disabled=current_page >= total_pages):
+                    st.session_state.docs_page = current_page + 1
+                    st.rerun()
+
+    except Exception as e:
+        st.error(t("error", msg=str(e)))
+
+
+# ===================== TAB 4: GRAPH EXPLORER ==============================
 
 with tab_graph:
     st.header(t("graph_header"))
@@ -411,7 +491,7 @@ with tab_graph:
         st.warning(t("error", msg=str(e)))
 
 
-# ===================== TAB 4: AGENT TRACE =================================
+# ===================== TAB 5: AGENT TRACE =================================
 
 with tab_trace:
     st.header(t("trace_header"))
@@ -509,7 +589,7 @@ with tab_trace:
             st.json(trace_data)
 
 
-# ===================== TAB 5: BENCHMARK ===================================
+# ===================== TAB 6: BENCHMARK ===================================
 
 with tab_bench:
     st.header(t("bench_header"))
@@ -559,7 +639,7 @@ with tab_bench:
             st.error(t("error", msg=str(e)))
 
 
-# ===================== TAB 6: REASONING ===================================
+# ===================== TAB 7: REASONING ===================================
 
 with tab_reasoning:
     st.header(t("reasoning_header"))
@@ -675,7 +755,7 @@ with tab_reasoning:
         st.error(t("reasoning_error", msg=str(e)))
 
 
-# ===================== TAB 7: SETTINGS ====================================
+# ===================== TAB 8: SETTINGS ====================================
 
 with tab_settings:
     st.header(t("settings_header"))

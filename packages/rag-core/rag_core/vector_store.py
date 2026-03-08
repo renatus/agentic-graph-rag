@@ -150,3 +150,66 @@ class VectorStore:
             )
             record = result.single()
             return record["total"] if record else 0
+
+    def list_documents(self) -> list[dict]:
+        """List unique documents with metadata.
+
+        Returns list of dicts with:
+        - source: document source/filename
+        - chunk_count: number of chunks
+        - total_chars: total characters
+        - uploaded_at: upload timestamp (if available)
+        """
+        with self._driver.session() as session:
+            result = session.run(
+                f"""
+                MATCH (c:{NODE_LABEL})
+                WITH c.metadata AS meta, count(c) AS chunk_count,
+                     sum(size(c.content)) AS total_chars
+                WITH meta, chunk_count, total_chars
+                RETURN
+                    CASE
+                        WHEN meta CONTAINS 'source' THEN
+                            substring(meta, strpos(meta, "'source': '") + 11,
+                                      strpos(substring(meta, strpos(meta, "'source': '") + 11), "'"))
+                        ELSE 'unknown'
+                    END AS source,
+                    chunk_count,
+                    total_chars,
+                    CASE
+                        WHEN meta CONTAINS 'uploaded_at' THEN
+                            substring(meta, strpos(meta, "'uploaded_at': '") + 16,
+                                      strpos(substring(meta, strpos(meta, "'uploaded_at': '") + 16), "'"))
+                        ELSE ''
+                    END AS uploaded_at
+                ORDER BY source
+                """
+            )
+            documents = []
+            for record in result:
+                documents.append({
+                    "source": record["source"] or "unknown",
+                    "chunk_count": record["chunk_count"],
+                    "total_chars": record["total_chars"],
+                    "uploaded_at": record["uploaded_at"] or "",
+                })
+            return documents
+
+    def delete_by_source(self, source: str) -> int:
+        """Delete all chunks from a specific source. Returns count deleted."""
+        with self._driver.session() as session:
+            result = session.run(
+                f"""
+                MATCH (c:{NODE_LABEL})
+                WHERE c.metadata CONTAINS $source
+                WITH c, count(c) AS total
+                DETACH DELETE c
+                RETURN total
+                """,
+                source=f"'source': '{source}'",
+            )
+            record = result.single()
+            count = record["total"] if record else 0
+
+        logger.info("Deleted %d chunks from source '%s'", count, source)
+        return count
