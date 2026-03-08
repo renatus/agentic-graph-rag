@@ -303,3 +303,40 @@ class VectorStore:
 
         logger.info("Updated embeddings for %d chunks", count)
         return count
+
+    def get_chunks_by_section(self, section_title: str) -> list[dict]:
+        """Get all chunks for a specific section title (for legacy documents).
+
+        Returns list of dicts with: id, content, context, metadata
+        """
+        import ast
+
+        with self._driver.session() as session:
+            result = session.run(
+                f"""
+                MATCH (c:{NODE_LABEL})
+                WHERE c.metadata CONTAINS $section_pattern
+                RETURN c.id AS id, c.content AS content,
+                       c.context AS context, c.metadata AS metadata
+                """,
+                section_pattern=f"'section_title': '{section_title}'",
+            )
+
+            chunks = []
+            for record in result:
+                meta_str = record["metadata"] or "{}"
+                try:
+                    metadata = ast.literal_eval(meta_str) if meta_str else {}
+                except (ValueError, SyntaxError):
+                    metadata = {}
+
+                # Verify the section title matches exactly
+                if metadata.get("section_title") == section_title:
+                    chunks.append({
+                        "id": record["id"],
+                        "content": record["content"],
+                        "context": record["context"],
+                        "metadata": metadata,
+                    })
+
+            return chunks

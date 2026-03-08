@@ -456,11 +456,48 @@ with tab_documents:
                     # Show sections for unknown documents
                     if doc['source'] == 'unknown' and doc.get('sections'):
                         with st.expander(f"Show {len(doc['sections'])} sections"):
-                            for section_title, section_data in doc['sections'][:20]:
-                                st.markdown(
-                                    f"- **{section_title}** — {section_data['chunk_count']} chunks, "
-                                    f"{section_data['total_chars']:,} chars"
-                                )
+                            for sec_idx, (section_title, section_data) in enumerate(doc['sections'][:20]):
+                                sec_col1, sec_col2 = st.columns([4, 1])
+                                with sec_col1:
+                                    st.markdown(
+                                        f"**{section_title}** — {section_data['chunk_count']} chunks, "
+                                        f"{section_data['total_chars']:,} chars"
+                                    )
+                                with sec_col2:
+                                    sec_btn_key = f"reprocess_section_{sec_idx}_{section_title[:20]}"
+                                    if st.button(t("docs_reprocess"), key=sec_btn_key):
+                                        with st.spinner(t("docs_reprocessing")):
+                                            from rag_core.embedder import embed_chunks
+                                            from rag_core.models import Chunk
+
+                                            # Get chunks for this section
+                                            raw_chunks = store.get_chunks_by_section(section_title)
+
+                                            if raw_chunks:
+                                                # Convert to Chunk objects
+                                                chunks = [
+                                                    Chunk(
+                                                        id=c["id"],
+                                                        content=c["content"],
+                                                        context=c.get("context", ""),
+                                                        metadata=c.get("metadata", {}),
+                                                    )
+                                                    for c in raw_chunks
+                                                ]
+
+                                                # Re-embed
+                                                chunks = embed_chunks(chunks)
+
+                                                # Update in database
+                                                chunk_dicts = [
+                                                    {"id": c.id, "embedding": c.embedding}
+                                                    for c in chunks
+                                                ]
+                                                updated = store.update_chunk_embeddings(chunk_dicts)
+
+                                                st.success(t("docs_reprocess_done", count=updated))
+                                                st.rerun()
+
                             if len(doc['sections']) > 20:
                                 st.caption(f"... and {len(doc['sections']) - 20} more sections")
 
