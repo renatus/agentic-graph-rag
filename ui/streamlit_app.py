@@ -467,6 +467,7 @@ with tab_documents:
                                     sec_btn_key = f"reprocess_section_{sec_idx}_{section_title[:20]}"
                                     if st.button(t("docs_reprocess"), key=sec_btn_key):
                                         with st.spinner(t("docs_reprocessing")):
+                                            from datetime import datetime
                                             from rag_core.embedder import embed_chunks
                                             from rag_core.models import Chunk
 
@@ -474,6 +475,17 @@ with tab_documents:
                                             raw_chunks = store.get_chunks_by_section(section_title)
 
                                             if raw_chunks:
+                                                # Add source and uploaded_at metadata
+                                                new_metadata = {
+                                                    "source": section_title,
+                                                    "uploaded_at": datetime.now().isoformat(),
+                                                }
+
+                                                # Update metadata for each chunk
+                                                for c in raw_chunks:
+                                                    c["metadata"].update(new_metadata)
+                                                    store.update_chunk_metadata(c["id"], c["metadata"])
+
                                                 # Convert to Chunk objects
                                                 chunks = [
                                                     Chunk(
@@ -488,7 +500,7 @@ with tab_documents:
                                                 # Re-embed
                                                 chunks = embed_chunks(chunks)
 
-                                                # Update in database
+                                                # Update embeddings in database
                                                 chunk_dicts = [
                                                     {"id": c.id, "embedding": c.embedding}
                                                     for c in chunks

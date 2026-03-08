@@ -304,6 +304,21 @@ class VectorStore:
         logger.info("Updated embeddings for %d chunks", count)
         return count
 
+    def update_chunk_metadata(self, chunk_id: str, metadata: dict) -> bool:
+        """Update metadata for a chunk. Returns True if successful."""
+        with self._driver.session() as session:
+            result = session.run(
+                f"""
+                MATCH (c:{NODE_LABEL} {{id: $id}})
+                SET c.metadata = $metadata_str
+                RETURN c.id AS id
+                """,
+                id=chunk_id,
+                metadata_str=str(metadata),
+            )
+            record = result.single()
+            return record is not None
+
     def get_chunks_by_section(self, section_title: str) -> list[dict]:
         """Get all chunks for a specific section title (for legacy documents).
 
