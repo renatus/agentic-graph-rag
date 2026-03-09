@@ -235,7 +235,7 @@ Log file: {self.log_path}
             }
 
         summary = {
-            "filename": self.filename,
+            "filename": self.source_identifier,
             "started": self.start_time.isoformat(),
             "completed": datetime.now().isoformat(),
             "total_duration_seconds": round(total_duration, 3),
@@ -256,7 +256,7 @@ Log file: {self.log_path}
         self._append(entry)
         logger.info(
             "Ingestion complete for %s: %.3fs, %d chunks",
-            self.filename, total_duration, len(self.chunks)
+            self.source_identifier, total_duration, len(self.chunks)
         )
 
         return summary
@@ -271,35 +271,32 @@ Log file: {self.log_path}
         return self.log_path
 
 
-def get_ingestion_log(filename: str) -> Path | None:
-    """Get the path to an existing ingestion log file.
+def find_log_for_file(file_path: str | Path) -> Path | None:
+    """Find the log file associated with a document.
 
     Args:
-        filename: Original filename of the document.
+        file_path: Path to the document file.
 
     Returns:
         Path to the log file if it exists, None otherwise.
     """
-    safe_filename = "".join(
-        c if c.isalnum() or c in ".-_" else "_" for c in filename
-    ).strip("_.")
-
-    log_path = Path(DEFAULT_LOG_DIR) / f"{safe_filename}.log"
+    log_path = Path(str(file_path) + ".log")
     return log_path if log_path.exists() else None
 
 
-def list_ingestion_logs(log_dir: str | Path = DEFAULT_LOG_DIR) -> list[Path]:
-    """List all ingestion log files.
+def list_all_ingestion_logs(data_dir: str | Path = "data") -> list[Path]:
+    """List all ingestion log files in the data directory structure.
 
     Args:
-        log_dir: Directory containing log files.
+        data_dir: Root data directory to search for logs.
 
     Returns:
         List of log file paths, sorted by modification time (newest first).
     """
-    log_path = Path(log_dir)
-    if not log_path.exists():
+    data_path = Path(data_dir)
+    if not data_path.exists():
         return []
 
-    logs = list(log_path.glob("*.log"))
+    # Search recursively for all .log files
+    logs = list(data_path.rglob("*.log"))
     return sorted(logs, key=lambda p: p.stat().st_mtime, reverse=True)
