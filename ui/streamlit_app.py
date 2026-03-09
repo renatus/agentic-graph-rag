@@ -200,13 +200,15 @@ with tab_ingest:
                 chunk.metadata.update(doc_metadata)
 
             st.info(t("ingest_chunks_created", count=len(chunks)))
-            progress.progress(30, text=t("ingest_enriching"))
 
+            # Embed first so enricher can use embeddings for representative chunk selection
+            progress.progress(30, text=t("ingest_embedding"))
+            chunks = embed_chunks(chunks)
+
+            progress.progress(45, text=t("ingest_enriching"))
             if not skip_enrichment:
                 chunks = enrich_chunks(chunks, text)
-            progress.progress(45, text=t("ingest_embedding"))
 
-            chunks = embed_chunks(chunks)
             progress.progress(60, text=t("ingest_storing"))
 
             store.add_chunks(chunks)
