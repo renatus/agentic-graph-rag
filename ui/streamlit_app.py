@@ -180,13 +180,26 @@ with tab_ingest:
             from rag_core.chunker import chunk_text
             from rag_core.embedder import embed_chunks
             from rag_core.enricher import enrich_chunks
+            from rag_core.ingestion_logger import IngestionLogger
             from rag_core.loader import load_file
 
+            # Initialize ingestion logger (log stored next to source file)
+            ingestion_log = IngestionLogger(
+                source_identifier=original_filename or "unknown",
+                source_path=file_path,
+            )
+
             progress = st.progress(0, text=t("ingest_loading"))
+
+            # Step 1: Load file
+            ingestion_log.start_step("loading")
             text = load_file(file_path, use_gpu=use_gpu)
+            ingestion_log.end_step(output=f"{len(text)} characters loaded")
             st.info(t("ingest_chars_loaded", chars=len(text)))
             progress.progress(15, text=t("ingest_chunking"))
 
+            # Step 2: Chunk text
+            ingestion_log.start_step("chunking")
             cfg = get_settings()
             chunks = chunk_text(text, cfg.indexing.chunk_size, cfg.indexing.chunk_overlap)
 
@@ -199,22 +212,33 @@ with tab_ingest:
             for chunk in chunks:
                 chunk.metadata.update(doc_metadata)
 
+            ingestion_log.end_step(output=f"{len(chunks)} chunks created")
             st.info(t("ingest_chunks_created", count=len(chunks)))
 
-            # Embed first so enricher can use embeddings for representative chunk selection
+            # Step 3: Embed chunks
             progress.progress(30, text=t("ingest_embedding"))
+            ingestion_log.start_step("embedding")
             chunks = embed_chunks(chunks)
+            ingestion_log.end_step(output=f"{len(chunks)} chunks embedded")
 
+            # Step 4: Enrich chunks
             progress.progress(45, text=t("ingest_enriching"))
+            ingestion_log.start_step("enrichment")
             if not skip_enrichment:
                 chunks = enrich_chunks(chunks, text)
+                ingestion_log.end_step(output=f"{len(chunks)} chunks enriched")
+            else:
+                ingestion_log.end_step(output="skipped")
 
+            # Step 5: Store chunks
             progress.progress(60, text=t("ingest_storing"))
-
+            ingestion_log.start_step("storing")
             store.add_chunks(chunks)
             total = store.count()
+            ingestion_log.end_step(output=f"{len(chunks)} chunks stored, total: {total}")
 
             # --- Build Knowledge Graph (skeleton + dual-node) ---
+            entities, relationships = [], []
             if build_graph:
                 from agentic_graph_rag.indexing.dual_node import (
                     build_dual_graph,
@@ -226,6 +250,7 @@ with tab_ingest:
                 graph_label = "Building graph..." if lang == "en" else "Построение графа..."
                 progress.progress(70, text=graph_label)
 
+                ingestion_log.start_step("graph_building")
                 embeddings = [c.embedding for c in chunks]
                 entities, relationships, skeletal, peripheral = build_skeleton_index(
                     chunks, embeddings, openai_client=client,
@@ -251,6 +276,14 @@ with tab_ingest:
                     embed_phrase_nodes(phrase_nodes, driver, openai_client=client)
                     init_phrase_index(driver)
 
+                ingestion_log.end_step(
+                    output=f"{len(entities)} entities, {len(relationships)} relationships, {len(phrase_nodes)} phrase nodes"
+                )
+
+            # Log all chunks and finalize
+            ingestion_log.log_chunks(chunks)
+            summary = ingestion_log.log_summary()
+
             progress.progress(100, text="Done")
 
             graph_msg = ""
@@ -260,7 +293,8 @@ with tab_ingest:
                     if lang == "en"
                     else f" | Граф: {len(entities)} сущностей, {len(relationships)} связей"
                 )
-            st.success(t("ingest_success", chunks=len(chunks), total=total) + graph_msg)
+            log_msg = f" | Log: {ingestion_log.get_log_path()}"
+            st.success(t("ingest_success", chunks=len(chunks), total=total) + graph_msg + log_msg)
         except Exception as e:
             st.error(t("error", msg=str(e)))
 
@@ -426,12 +460,19 @@ with tab_documents:
                         if st.button(t("docs_reprocess"), key=btn_key):
                             with st.spinner(t("docs_reprocessing")):
                                 from rag_core.embedder import embed_chunks
+                                from rag_core.ingestion_logger import IngestionLogger
                                 from rag_core.models import Chunk
 
+                                # Initialize logger
+                                ingestion_log = IngestionLogger(f"reprocess_{source_key}")
+
                                 # Get chunks for this source
+                                ingestion_log.start_step("loading")
                                 raw_chunks = store.get_chunks_by_source(source_key)
+                                ingestion_log.end_step(output=f"{len(raw_chunks)} chunks loaded")
 
                                 # Convert to Chunk objects
+                                ingestion_log.start_step("embedding")
                                 chunks = [
                                     Chunk(
                                         id=c["id"],
@@ -444,15 +485,22 @@ with tab_documents:
 
                                 # Re-embed
                                 chunks = embed_chunks(chunks)
+                                ingestion_log.end_step(output=f"{len(chunks)} chunks embedded")
 
                                 # Update in database
+                                ingestion_log.start_step("storing")
                                 chunk_dicts = [
                                     {"id": c.id, "embedding": c.embedding}
                                     for c in chunks
                                 ]
                                 updated = store.update_chunk_embeddings(chunk_dicts)
+                                ingestion_log.end_step(output=f"{updated} chunks updated")
 
-                                st.success(t("docs_reprocess_done", count=updated))
+                                # Finalize log
+                                ingestion_log.log_chunks(chunks)
+                                ingestion_log.log_summary()
+
+                                st.success(t("docs_reprocess_done", count=updated) + f" | Log: {ingestion_log.get_log_path()}")
                                 st.rerun()
 
                     # Show sections for unknown documents
@@ -471,10 +519,16 @@ with tab_documents:
                                         with st.spinner(t("docs_reprocessing")):
                                             from datetime import datetime
                                             from rag_core.embedder import embed_chunks
+                                            from rag_core.ingestion_logger import IngestionLogger
                                             from rag_core.models import Chunk
 
+                                            # Initialize logger
+                                            ingestion_log = IngestionLogger(f"reprocess_{section_title[:50]}")
+
                                             # Get chunks for this section
+                                            ingestion_log.start_step("loading")
                                             raw_chunks = store.get_chunks_by_section(section_title)
+                                            ingestion_log.end_step(output=f"{len(raw_chunks) if raw_chunks else 0} chunks loaded")
 
                                             if raw_chunks:
                                                 # Add source and uploaded_at metadata
@@ -484,11 +538,14 @@ with tab_documents:
                                                 }
 
                                                 # Update metadata for each chunk
+                                                ingestion_log.start_step("metadata_update")
                                                 for c in raw_chunks:
                                                     c["metadata"].update(new_metadata)
                                                     store.update_chunk_metadata(c["id"], c["metadata"])
+                                                ingestion_log.end_step(output=f"{len(raw_chunks)} chunks updated")
 
                                                 # Convert to Chunk objects
+                                                ingestion_log.start_step("embedding")
                                                 chunks = [
                                                     Chunk(
                                                         id=c["id"],
@@ -501,15 +558,22 @@ with tab_documents:
 
                                                 # Re-embed
                                                 chunks = embed_chunks(chunks)
+                                                ingestion_log.end_step(output=f"{len(chunks)} chunks embedded")
 
                                                 # Update embeddings in database
+                                                ingestion_log.start_step("storing")
                                                 chunk_dicts = [
                                                     {"id": c.id, "embedding": c.embedding}
                                                     for c in chunks
                                                 ]
                                                 updated = store.update_chunk_embeddings(chunk_dicts)
+                                                ingestion_log.end_step(output=f"{updated} chunks updated")
 
-                                                st.success(t("docs_reprocess_done", count=updated))
+                                                # Finalize log
+                                                ingestion_log.log_chunks(chunks)
+                                                ingestion_log.log_summary()
+
+                                                st.success(t("docs_reprocess_done", count=updated) + f" | Log: {ingestion_log.get_log_path()}")
                                                 st.rerun()
 
                             if len(doc['sections']) > 20:
