@@ -159,7 +159,10 @@ class VectorStore:
         - chunk_count: number of chunks
         - total_chars: total characters
         - uploaded_at: upload timestamp (if available)
+        - file_path: original file path (if available)
         - sections: list of section titles (for unknown sources)
+
+        Sorted by uploaded_at (newest first) by default.
         """
         import ast
 
@@ -183,6 +186,7 @@ class VectorStore:
 
                 source = meta.get("source", "unknown")
                 uploaded_at = meta.get("uploaded_at", "")
+                file_path = meta.get("file_path", "")
                 section_title = meta.get("section_title", "")
 
                 if source not in docs_by_source:
@@ -191,6 +195,7 @@ class VectorStore:
                         "chunk_count": 0,
                         "total_chars": 0,
                         "uploaded_at": uploaded_at,
+                        "file_path": file_path,
                         "sections": {},
                     }
                 docs_by_source[source]["chunk_count"] += 1
@@ -217,7 +222,12 @@ class VectorStore:
                 else:
                     doc["sections"] = []
 
-            return sorted(docs_by_source.values(), key=lambda x: x["source"])
+            # Sort by uploaded_at (newest first), fallback to source name
+            def sort_key(doc):
+                uploaded = doc.get("uploaded_at", "")
+                return (uploaded is None or uploaded == "", uploaded, doc.get("source", ""))
+
+            return sorted(docs_by_source.values(), key=sort_key, reverse=True)
 
     def delete_by_source(self, source: str) -> int:
         """Delete all chunks from a specific source. Returns count deleted."""

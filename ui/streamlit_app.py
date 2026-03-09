@@ -221,6 +221,7 @@ with tab_ingest:
             doc_metadata = {
                 "source": original_filename or "unknown",
                 "uploaded_at": datetime.now().isoformat(),
+                "file_path": str(file_path) if file_path else "",
             }
             for chunk in chunks:
                 chunk.metadata.update(doc_metadata)
@@ -447,13 +448,16 @@ with tab_documents:
             # Display documents table
             for idx, doc in enumerate(page_docs):
                 with st.container(border=True):
-                    col1, col2, col3, col4, col5 = st.columns([3, 1, 2, 1, 1])
+                    col1, col2, col3, col4, col5, col6 = st.columns([3, 1, 2, 1, 1, 1])
 
                     with col1:
                         if doc['source'] == 'unknown':
                             st.markdown("**Unknown (legacy documents)**")
                         else:
                             st.markdown(f"**{doc['source']}**")
+                        # Show file path if available
+                        if doc.get('file_path'):
+                            st.caption(f"📁 {doc['file_path']}")
 
                     with col2:
                         st.caption(f"{doc['chunk_count']} {t('docs_col_chunks').lower()}")
@@ -515,6 +519,22 @@ with tab_documents:
 
                                 st.success(t("docs_reprocess_done", count=updated) + f" | Log: {ingestion_log.get_log_path()}")
                                 st.rerun()
+
+                    with col6:
+                        # Log button - show log file content
+                        file_path = doc.get('file_path', '')
+                        if file_path:
+                            log_path = Path(file_path + ".log")
+                            log_btn_key = f"log_{idx}_{source_key}"
+                            if st.button("Log", key=log_btn_key):
+                                if log_path.exists():
+                                    with open(log_path, "r", encoding="utf-8") as f:
+                                        log_content = f.read()
+                                    st.code(log_content, language="text")
+                                else:
+                                    st.info("Log file not found")
+                        else:
+                            st.caption("-")
 
                     # Show sections for unknown documents
                     if doc['source'] == 'unknown' and doc.get('sections'):
