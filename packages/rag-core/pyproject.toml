@@ -16,7 +16,7 @@ dependencies = [
     "docling>=2.0.0",
     "numpy>=1.26.0",
     "sentence-transformers>=2.2.0",
-    "tiktoken>=0.5.0",
+    "deepseek-tokenizer>=0.1.0",
 ]
 
 [project.optional-dependencies]

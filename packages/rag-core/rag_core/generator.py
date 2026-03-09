@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import tiktoken
+from deepseek_tokenizer import ds_token
 
 from rag_core.config import get_settings, make_openai_client
 from rag_core.models import QAResult, SearchResult
@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _ENUM_RE = None
-_TOKEN_ENCODER = None
 
 
 def _is_enumeration_query(query: str) -> bool:
@@ -40,32 +39,33 @@ def _is_enumeration_query(query: str) -> bool:
     return bool(_ENUM_RE.search(query))
 
 
-def _get_encoder(model: str = "deepseek-chat") -> tiktoken.Encoding:
-    """Get or create tiktoken encoder for a model (cached).
+def count_tokens(text: str) -> int:
+    """Count tokens in text using DeepSeek's official tokenizer.
 
-    DeepSeek uses cl100k_base encoding (same as GPT-4).
-    """
-    global _TOKEN_ENCODER  # noqa: PLW0603
-    if _TOKEN_ENCODER is None:
-        # DeepSeek and most modern models use cl100k_base encoding
-        _TOKEN_ENCODER = tiktoken.get_encoding("cl100k_base")
-    return _TOKEN_ENCODER
+    Uses the deepseek-tokenizer package which provides the exact same
+    tokenization as DeepSeek-V3/R1 models. This ensures accurate token
+    counting for context window management.
 
-
-def count_tokens(text: str, model: str = "deepseek-chat") -> int:
-    """Count tokens in text using tiktoken for accurate measurement.
+    The deepseek-tokenizer package:
+    - Is lightweight (only depends on 'tokenizers', not 'transformers')
+    - Uses the official DeepSeek 128K vocabulary Byte-level BPE tokenizer
+    - Provides exact token counts as the model would see them
 
     Args:
         text: Text to count tokens for.
-        model: Model name (default: deepseek-chat). Uses cl100k_base encoding.
 
     Returns:
-        Exact token count as the model would see it.
+        Exact token count as DeepSeek models would see it.
+
+    Example:
+        >>> count_tokens("Hello world")
+        2
+        >>> count_tokens("Привет мир")
+        3
     """
     if not text:
         return 0
-    encoder = _get_encoder(model)
-    return len(encoder.encode(text))
+    return len(ds_token.encode(text))
 
 
 def generate_answer(
