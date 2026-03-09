@@ -7,7 +7,7 @@ Port: 8506
 from __future__ import annotations
 
 import os
-import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -149,10 +149,23 @@ with tab_ingest:
         if uploaded:
             original_filename = uploaded.name
             suffix = Path(uploaded.name).suffix
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-            tmp.write(uploaded.read())
-            tmp.flush()
-            file_path = tmp.name
+
+            # Save to /data/YYYY/MM/DD/ structure
+            today = datetime.now()
+            data_dir = Path("data") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
+            data_dir.mkdir(parents=True, exist_ok=True)
+
+            # Create unique filename if file already exists
+            file_path = data_dir / original_filename
+            if file_path.exists():
+                stem = Path(original_filename).stem
+                counter = 1
+                while file_path.exists():
+                    file_path = data_dir / f"{stem}_{counter}{suffix}"
+                    counter += 1
+
+            # Write uploaded file
+            file_path.write_bytes(uploaded.read())
     else:
         file_path = st.text_input(
             t("ingest_path_input"),
