@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+import tiktoken
+
 from rag_core.config import get_settings, make_openai_client
 from rag_core.models import QAResult, SearchResult
 
@@ -18,6 +20,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _ENUM_RE = None
+_TOKEN_ENCODER = None
 
 
 def _is_enumeration_query(query: str) -> bool:
@@ -37,12 +40,32 @@ def _is_enumeration_query(query: str) -> bool:
     return bool(_ENUM_RE.search(query))
 
 
-def _estimate_tokens(text: str) -> int:
-    """Estimate token count using character-based approximation.
+def _get_encoder(model: str = "deepseek-chat") -> tiktoken.Encoding:
+    """Get or create tiktoken encoder for a model (cached).
 
-    Uses ~4 characters per token as rough estimate for mixed English/Russian text.
+    DeepSeek uses cl100k_base encoding (same as GPT-4).
     """
-    return len(text) // 4
+    global _TOKEN_ENCODER  # noqa: PLW0603
+    if _TOKEN_ENCODER is None:
+        # DeepSeek and most modern models use cl100k_base encoding
+        _TOKEN_ENCODER = tiktoken.get_encoding("cl100k_base")
+    return _TOKEN_ENCODER
+
+
+def count_tokens(text: str, model: str = "deepseek-chat") -> int:
+    """Count tokens in text using tiktoken for accurate measurement.
+
+    Args:
+        text: Text to count tokens for.
+        model: Model name (default: deepseek-chat). Uses cl100k_base encoding.
+
+    Returns:
+        Exact token count as the model would see it.
+    """
+    if not text:
+        return 0
+    encoder = _get_encoder(model)
+    return len(encoder.encode(text))
 
 
 def generate_answer(
@@ -65,7 +88,7 @@ def generate_answer(
     # Build context with token limit
     max_context_tokens = cfg.openai.max_context_tokens
     # Reserve tokens for system prompt, user prompt template, query
-    prompt_overhead = 500 + _estimate_tokens(query)
+    prompt_overhead = 500 + count_tokens(query)
     available_tokens = max_context_tokens - prompt_overhead
 
     # Sort by score descending to prioritize most relevant chunks
@@ -78,7 +101,7 @@ def generate_answer(
 
     for i, result in enumerate(sorted_results, start=1):
         chunk_text = f"[Chunk {i}]\n{result.chunk.enriched_content}"
-        chunk_tokens = _estimate_tokens(chunk_text)
+        chunk_tokens = count_tokens(chunk_text)
 
         if total_tokens + chunk_tokens <= available_tokens:
             context_chunks.append(chunk_text)
