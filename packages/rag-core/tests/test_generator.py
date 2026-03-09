@@ -92,6 +92,7 @@ class TestGenerateAnswer:
         cfg = MagicMock()
         cfg.openai.llm_model = "gpt-4o-mini"
         cfg.openai.llm_temperature = 0.1
+        cfg.openai.max_context_tokens = 100000
         mock_settings.return_value = cfg
 
         mock_client = MagicMock()
