@@ -34,7 +34,8 @@ def enrich_chunks(
     cfg = get_settings()
     client = make_openai_client(cfg)
 
-    if not document_summary:
+    # Generate summary if not provided or too long (>2000 chars)
+    if not document_summary or len(document_summary) > 2000:
         document_summary = _generate_summary(chunks[:3], client, cfg.openai.llm_model)
         logger.info("Generated document summary: %s", document_summary[:100])
 
