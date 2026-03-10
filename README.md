@@ -148,6 +148,14 @@ agentic-graph-rag/
 - Python 3.12+
 - Docker — [Docker Desktop](https://www.docker.com/products/docker-desktop/) for Windows/Mac, or `docker-ce` for Linux ([install guide](https://docs.docker.com/engine/install/))
 - OpenAI API key ([get one here](https://platform.openai.com/api-keys))
+- **Linux only**: OpenGL library for PDF processing (Docling uses OpenCV)
+  ```bash
+  # Ubuntu 24.04+
+  sudo apt-get install -y libgl1
+
+  # Ubuntu 22.04 and earlier
+  sudo apt-get install -y libgl1-mesa-glx
+  ```
 
 ### 1. Install
 
