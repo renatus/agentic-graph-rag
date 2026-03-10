@@ -530,8 +530,11 @@ with tab_documents:
                                 from rag_core.ingestion_logger import IngestionLogger
                                 from rag_core.models import Chunk
 
-                                # Initialize logger
-                                ingestion_log = IngestionLogger(f"reprocess_{source_key}")
+                                # Initialize logger (log stored next to source file)
+                                ingestion_log = IngestionLogger(
+                                    source_identifier=f"reprocess_{source_key}",
+                                    source_path=doc.get('file_path'),
+                                )
 
                                 # Get chunks for this source
                                 ingestion_log.start_step("loading")
@@ -621,8 +624,11 @@ with tab_documents:
                                             from rag_core.ingestion_logger import IngestionLogger
                                             from rag_core.models import Chunk
 
-                                            # Initialize logger
-                                            ingestion_log = IngestionLogger(f"reprocess_{section_title[:50]}")
+                                            # Initialize logger (log stored next to source file)
+                                            ingestion_log = IngestionLogger(
+                                                source_identifier=f"reprocess_{section_title[:50]}",
+                                                source_path=doc.get('file_path'),
+                                            )
 
                                             # Get chunks for this section
                                             ingestion_log.start_step("loading")
