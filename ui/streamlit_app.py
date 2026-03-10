@@ -109,6 +109,51 @@ if "last_qa" not in st.session_state:
     st.session_state.last_qa = None
 if "last_trace" not in st.session_state:
     st.session_state.last_trace = None
+if "log_dialog_content" not in st.session_state:
+    st.session_state.log_dialog_content = None
+if "log_dialog_path" not in st.session_state:
+    st.session_state.log_dialog_path = None
+if "show_log_dialog" not in st.session_state:
+    st.session_state.show_log_dialog = False
+
+# ---------------------------------------------------------------------------
+# Log viewer dialog
+# ---------------------------------------------------------------------------
+
+@st.dialog("Log Viewer", width="large")
+def show_log_dialog():
+    """Display log content in a popup dialog with copy button."""
+    import streamlit.components.v1 as components
+
+    if st.session_state.log_dialog_content:
+        # Display log path
+        if st.session_state.log_dialog_path:
+            st.caption(f"File: {st.session_state.log_dialog_path}")
+
+        # Copy to clipboard button with JavaScript
+        col_copy, col_dummy = st.columns([1, 4])
+        with col_copy:
+            if st.button("📋 Copy to clipboard", key="copy_log_btn"):
+                # Use JavaScript to copy to clipboard
+                log_text = st.session_state.log_dialog_content.replace("`", "\\`").replace("\n", "\\n").replace("\r", "\\r")
+                components.html(f"""
+                    <script>
+                        navigator.clipboard.writeText(`{log_text}`).then(function() {{
+                            window.parent.document.querySelector('[data-testid="stNotification"]').innerHTML = '<div style="background:#0f5132;color:white;padding:10px;border-radius:5px;">Copied to clipboard!</div>';
+                        }}).catch(function(err) {{
+                            console.error('Failed to copy:', err);
+                        }});
+                    </script>
+                """, height=0)
+                st.success("Copied to clipboard!")
+
+        st.divider()
+
+        # Display log content in scrollable area
+        st.code(st.session_state.log_dialog_content, language="text")
+    else:
+        st.info("No log file found")
+
 
 # ---------------------------------------------------------------------------
 # Tabs
@@ -124,6 +169,11 @@ tab_ingest, tab_search, tab_documents, tab_graph, tab_trace, tab_bench, tab_reas
     t("tab_reasoning"),
     t("tab_settings"),
 ])
+
+# Show log dialog if requested
+if st.session_state.show_log_dialog:
+    show_log_dialog()
+    st.session_state.show_log_dialog = False
 
 
 # ===================== TAB 1: INGEST ======================================
@@ -521,20 +571,36 @@ with tab_documents:
                                 st.rerun()
 
                     with col6:
-                        # Log button - show log file content
+                        # Log button - show log file content in popup
                         file_path = doc.get('file_path', '')
+                        source_name = doc.get('source', '')
+                        log_path = None
+
+                        # First try direct file path
                         if file_path:
-                            log_path = Path(file_path + ".log")
-                            log_btn_key = f"log_{idx}_{source_key}"
-                            if st.button("Log", key=log_btn_key):
-                                if log_path.exists():
-                                    with open(log_path, "r", encoding="utf-8") as f:
-                                        log_content = f.read()
-                                    st.code(log_content, language="text")
-                                else:
-                                    st.info("Log file not found")
-                        else:
-                            st.caption("-")
+                            potential_log = Path(file_path + ".log")
+                            if potential_log.exists():
+                                log_path = potential_log
+
+                        # If not found, try to find by source name in data/ directory
+                        if not log_path and source_name and source_name != 'unknown':
+                            log_files = list(Path("data").rglob(f"**/*{source_name}*.log"))
+                            if log_files:
+                                log_path = log_files[0]  # Use first match
+
+                        # Show log button (always visible)
+                        log_btn_key = f"log_{idx}_{source_key}"
+                        if st.button("Log", key=log_btn_key):
+                            if log_path and log_path.exists():
+                                with open(log_path, "r", encoding="utf-8") as f:
+                                    log_content = f.read()
+                                st.session_state.log_dialog_content = log_content
+                                st.session_state.log_dialog_path = str(log_path)
+                            else:
+                                st.session_state.log_dialog_content = None
+                                st.session_state.log_dialog_path = None
+                            st.session_state.show_log_dialog = True
+                            st.rerun()
 
                     # Show sections for unknown documents
                     if doc['source'] == 'unknown' and doc.get('sections'):
